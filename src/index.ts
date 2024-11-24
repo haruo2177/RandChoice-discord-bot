@@ -2,7 +2,7 @@ import { InteractionResponseType, InteractionType, verifyKey } from "discord-int
 import { Hono } from "hono";
 import { env } from "hono/adapter";
 import { logger } from "hono/logger";
-import { getServerUsers as getGuildMembers, listChannelUserIds as getVoiceChannelUserIds } from "./utils";
+import { getGuildMembers, getVoiceChannelUserIds } from "./utils";
 
 const app = new Hono();
 
@@ -50,12 +50,17 @@ app.post("/interactions", async (c) => {
     console.log({ members });
 
     // bot 以外のユーザIDを取得
-    const userIds = members.map((member) => member.user.id);
+    const userIds = members.filter((member) => !member.user.bot).map((member) => member.user.id);
     console.log({ userIds });
 
     // コマンドが実行されたチャンネルに入室しているユーザIDのみ抽出
-    const voiceChannelUserIds = getVoiceChannelUserIds(channel.id, userIds, DISCORD_BOT_TOKEN, channel.id);
+    const voiceChannelUserIds = await getVoiceChannelUserIds(channel.guild_id, userIds, DISCORD_BOT_TOKEN, channel.id);
     console.log({ voiceChannelUserIds });
+
+    // チャンネルに入室しているユーザIDがない場合
+    if (voiceChannelUserIds.length === 0) {
+      return c.json({ type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE, data: { content: "誰もいないよ" } });
+    }
 
     // チャンネルに入室しているユーザ名を取得
     const userNames = members
